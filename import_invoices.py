@@ -3,8 +3,12 @@ Import des factures historiques — Script autonome (sans FastAPI)
 """
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+import os
+from dotenv import load_dotenv
 
-engine = create_engine("sqlite:///./bbl_monitoring.db")
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bbl_monitoring.db")
+engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 db = Session()
 
