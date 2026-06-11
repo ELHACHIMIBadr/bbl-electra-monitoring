@@ -78,8 +78,8 @@ def init_default_users(db: Session):
         return
 
     users = [
-        {"name": "Admin 1", "email": "admin", "password": "admin", "role": UserRole.ADMIN},
-        {"name": "Admin 2", "email": "admin", "password": "admin", "role": UserRole.ADMIN},
+        {"name": "Admin 1", "email": "admin1", "password": "admin", "role": UserRole.ADMIN},
+        {"name": "Admin 2", "email": "admin2", "password": "admin", "role": UserRole.ADMIN},
         {"name": "Admin 3", "email": "admin3", "password": "admin", "role": UserRole.ADMIN},
     ]
 
