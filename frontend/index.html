@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f9fc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>BBL-ELECTRA Monitoring</title>
+  <link rel="manifest" href="/frontend/manifest.json">
+  <link rel="icon" type="image/x-icon" href="/frontend/icons/favicon.ico">
+  <link rel="apple-touch-icon" href="/frontend/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/frontend/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-logo"><i data-lucide="zap"></i></div>
+      <div>
+        <div class="header-title">BBL-ELECTRA</div>
+        <div class="header-subtitle">FERME OUM AZZA</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-indicator"><div class="live-dot" id="liveDot"></div>Live</div>
+      <div class="tariff-pill tariff-HPL" id="tariffBadge">HPL</div>
+    </div>
+  </header>
+  <div class="refresh-bar"><div class="progress" id="refreshProgress" style="width:0%"></div></div>
+
+  <main class="main">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi solar">
+          <div class="kpi-top"><div class="kpi-icon"><i data-lucide="sun"></i></div><div class="kpi-label">Production PV</div></div>
+          <div class="kpi-val"><span id="kpi-pv">--</span> <span class="kpi-unit">kW</span></div>
+        </div>
+        <div class="kpi conso">
+          <div class="kpi-top"><div class="kpi-icon"><i data-lucide="factory"></i></div><div class="kpi-label">Consommation</div></div>
+          <div class="kpi-val"><span id="kpi-conso">--</span> <span class="kpi-unit">kW</span></div>
+        </div>
+        <div class="kpi import">
+          <div class="kpi-top"><div class="kpi-icon"><i data-lucide="arrow-down-circle"></i></div><div class="kpi-label">Import</div></div>
+          <div class="kpi-val"><span id="kpi-import">--</span> <span class="kpi-unit">kW</span></div>
+        </div>
+        <div class="kpi export">
+          <div class="kpi-top"><div class="kpi-icon"><i data-lucide="arrow-up-circle"></i></div><div class="kpi-label">Export</div></div>
+          <div class="kpi-val"><span id="kpi-export">--</span> <span class="kpi-unit">kW</span></div>
+        </div>
+      </div>
+
+      <!-- Energy Flow Triangle -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Flux d'énergie</span>
+          <span class="card-badge" id="flowTime">--:--</span>
+        </div>
+        <div class="flow-canvas" id="flowCanvas">
+          <svg class="flow-svg" id="flowSvg" viewBox="0 0 320 180">
+            <!-- PV → Farm -->
+            <line id="line-pv" class="flow-line solar" x1="160" y1="30" x2="80" y2="140"/>
+            <circle id="dot-pv" class="flow-particle solar" cx="160" cy="30" r="4">
+              <animateMotion dur="1.5s" repeatCount="indefinite" path="M0,0 L-80,110"/>
+            </circle>
+            <!-- Grid → Farm -->
+            <line id="line-grid" class="flow-line grid-line" x1="240" y1="140" x2="80" y2="140"/>
+            <circle id="dot-grid" class="flow-particle grid-p" cx="240" cy="140" r="4">
+              <animateMotion id="gridMotion" dur="1.5s" repeatCount="indefinite" path="M0,0 L-160,0"/>
+            </circle>
+          </svg>
+          <div class="flow-nodes">
+            <div class="flow-top">
+              <div class="flow-node">
+                <div class="flow-circle pv"><i data-lucide="sun"></i></div>
+                <div class="flow-name">Solaire</div>
+                <div class="flow-kw" id="flow-pv">-- kW</div>
+              </div>
+            </div>
+            <div class="flow-bottom">
+              <div class="flow-node">
+                <div class="flow-circle farm"><i data-lucide="home"></i></div>
+                <div class="flow-name">Ferme</div>
+                <div class="flow-kw" id="flow-conso">-- kW</div>
+              </div>
+              <div class="flow-node">
+                <div class="flow-circle grid" id="gridCircle"><i data-lucide="utility-pole"></i></div>
+                <div class="flow-name">Réseau</div>
+                <div class="flow-kw" id="flow-grid">-- kW</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Donuts -->
+      <div class="donut-row">
+        <div class="card donut-card">
+          <div class="donut-title">Rendement PV</div>
+          <div class="donut-wrap"><canvas id="donutPV"></canvas>
+            <div class="donut-center"><div class="donut-center-val" id="donut-pv-val">--</div><div class="donut-center-unit">kWh</div></div>
+          </div>
+          <div class="donut-legend">
+            <div class="donut-legend-item" style="color:var(--green)"><span id="donut-selfuse">--</span> kWh autoconsommé</div>
+            <div class="donut-legend-item" style="color:var(--orange)"><span id="donut-export">--</span> kWh exporté</div>
+          </div>
+        </div>
+        <div class="card donut-card">
+          <div class="donut-title">Consommation</div>
+          <div class="donut-wrap"><canvas id="donutConso"></canvas>
+            <div class="donut-center"><div class="donut-center-val" id="donut-conso-val">--</div><div class="donut-center-unit">kWh</div></div>
+          </div>
+          <div class="donut-legend">
+            <div class="donut-legend-item" style="color:var(--green)"><span id="donut-from-pv">--</span> kWh depuis PV</div>
+            <div class="donut-legend-item" style="color:var(--red)"><span id="donut-from-grid">--</span> kWh importé</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Production vs Consommation</span><span class="card-badge">Aujourd'hui</span></div>
+        <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      </div>
+
+      <!-- Costs -->
+      <div>
+        <div class="card-header" style="padding: 0 2px; margin-bottom: 10px;"><span class="card-title">Coût estimé aujourd'hui</span></div>
+        <div class="cost-row">
+          <div class="cost-item"><div class="cost-label hc">HC</div><div class="cost-amount" id="cost-hc">--</div><div class="cost-detail"><span id="kwh-hc">--</span> kWh</div></div>
+          <div class="cost-item"><div class="cost-label hpl">HPL</div><div class="cost-amount" id="cost-hn">--</div><div class="cost-detail"><span id="kwh-hn">--</span> kWh</div></div>
+          <div class="cost-item"><div class="cost-label hp">HP</div><div class="cost-amount" id="cost-hp">--</div><div class="cost-detail"><span id="kwh-hp">--</span> kWh</div></div>
+          <div class="cost-item total"><div class="cost-label tot">Total</div><div class="cost-amount" id="cost-total" style="color:var(--solar)">--</div><div class="cost-detail">DH TTC</div></div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Alertes récentes</span><button class="card-badge" onclick="showPage('alerts')" style="cursor:pointer;border:none;">Voir tout →</button></div>
+        <div id="alertsList"><div class="alert-none">✅ Aucune alerte active</div></div>
+      </div>
+    </div>
+
+    <!-- ===== STATS (Jour/Mois/Année) ===== -->
+    <div class="page" id="page-stats">
+      <div class="card">
+        <div class="stats-tabs">
+          <button class="stats-tab active" onclick="setStatsView('day')">Jour</button>
+          <button class="stats-tab" onclick="setStatsView('month')">Mois</button>
+          <button class="stats-tab" onclick="setStatsView('year')">Année</button>
+        </div>
+        <div class="stats-nav">
+          <button class="stats-nav-btn" onclick="statsNav(-1)"><i data-lucide="chevron-left"></i></button>
+          <span class="stats-nav-label" id="statsLabel">--</span>
+          <button class="stats-nav-btn" onclick="statsNav(1)"><i data-lucide="chevron-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Stats KPIs -->
+      <div class="kpi-grid" id="statsKpis">
+        <div class="kpi solar"><div class="kpi-top"><div class="kpi-icon"><i data-lucide="sun"></i></div><div class="kpi-label">Production</div></div><div class="kpi-val"><span id="stats-pv">--</span> <span class="kpi-unit">kWh</span></div></div>
+        <div class="kpi conso"><div class="kpi-top"><div class="kpi-icon"><i data-lucide="factory"></i></div><div class="kpi-label">Conso</div></div><div class="kpi-val"><span id="stats-conso">--</span> <span class="kpi-unit">kWh</span></div></div>
+        <div class="kpi import"><div class="kpi-top"><div class="kpi-icon"><i data-lucide="arrow-down-circle"></i></div><div class="kpi-label">Import</div></div><div class="kpi-val"><span id="stats-import">--</span> <span class="kpi-unit">kWh</span></div></div>
+        <div class="kpi export"><div class="kpi-top"><div class="kpi-icon"><i data-lucide="arrow-up-circle"></i></div><div class="kpi-label">Export</div></div><div class="kpi-val"><span id="stats-export">--</span> <span class="kpi-unit">kWh</span></div></div>
+      </div>
+
+      <!-- Donuts stats -->
+      <div class="donut-row">
+        <div class="card donut-card">
+          <div class="donut-title">Rendement</div>
+          <div class="donut-wrap"><canvas id="statsDonutPV"></canvas>
+            <div class="donut-center"><div class="donut-center-val" id="stats-donut-pv">--</div><div class="donut-center-unit">kWh</div></div>
+          </div>
+        </div>
+        <div class="card donut-card">
+          <div class="donut-title">Consommation</div>
+          <div class="donut-wrap"><canvas id="statsDonutConso"></canvas>
+            <div class="donut-center"><div class="donut-center-val" id="stats-donut-conso">--</div><div class="donut-center-unit">kWh</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Chart -->
+      <div class="card">
+        <div class="card-header"><span class="card-title" id="statsChartTitle">Courbes</span></div>
+        <div class="chart-wrap" style="height:300px"><canvas id="statsChart"></canvas></div>
+      </div>
+
+      <!-- Savings -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Économies solaires</span></div>
+        <div style="display:flex;justify-content:space-around;padding:12px 0;text-align:center">
+          <div><div style="font-size:1.3rem;font-weight:800;color:var(--green)" id="stats-savings">--</div><div style="font-size:0.72rem;color:var(--text-3);font-weight:600">DH économisés</div></div>
+          <div><div style="font-size:1.3rem;font-weight:800;color:var(--red)" id="stats-cost">--</div><div style="font-size:0.72rem;color:var(--text-3);font-weight:600">DH réseau</div></div>
+          <div><div style="font-size:1.3rem;font-weight:800;color:var(--orange)" id="stats-lost">--</div><div style="font-size:0.72rem;color:var(--text-3);font-weight:600">DH export perdu</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FACTURES ===== -->
+    <div class="page" id="page-factures">
+      <div class="card"><div class="card-header"><span class="card-title">Comparaison par mois</span>
+        <select id="monthSelector" onchange="updateMonthComparison()" class="month-sel">
+          <option value="1">Janvier</option><option value="2">Février</option><option value="3">Mars</option>
+          <option value="4">Avril</option><option value="5">Mai</option><option value="6">Juin</option>
+          <option value="7">Juillet</option><option value="8">Août</option><option value="9">Septembre</option>
+          <option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option>
+        </select></div>
+        <div class="chart-wrap" style="height:260px"><canvas id="monthCompareChart"></canvas></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Détail kWh par tranche</span><span class="card-badge" id="monthDetailLabel">Jan</span></div>
+        <div class="chart-wrap" style="height:240px"><canvas id="monthDetailChart"></canvas></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Évolution facture</span><span class="card-badge">2024 / 2025 / 2026</span></div>
+        <div class="chart-wrap" style="height:280px"><canvas id="yearEvolutionChart"></canvas></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Évolution conso (kWh)</span><span class="card-badge">2024 / 2025 / 2026</span></div>
+        <div class="chart-wrap" style="height:280px"><canvas id="kwhEvolutionChart"></canvas></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Puissance souscrite</span></div>
+        <div class="chart-wrap" style="height:180px"><canvas id="psChart"></canvas></div>
+      </div>
+
+      <!-- Add invoice -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Ajouter / Modifier</span>
+          <button class="btn btn-primary" onclick="toggleInvoiceForm()" style="padding:6px 14px; font-size:0.78rem;">+ Facture</button>
+        </div>
+        <div id="invoiceForm" style="display:none; padding-top:10px;">
+          <div class="inv-form-grid">
+            <div class="form-grp"><label>Année</label><input type="number" id="inv-year" value="2026"></div>
+            <div class="form-grp"><label>Mois</label><select id="inv-month" style="padding:8px"><option value="1">Jan</option><option value="2">Fév</option><option value="3">Mar</option><option value="4">Avr</option><option value="5">Mai</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Aoû</option><option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Déc</option></select></div>
+            <div class="form-grp"><label>HP (kWh)</label><input type="number" id="inv-hp" value="0"></div>
+            <div class="form-grp"><label>HPL (kWh)</label><input type="number" id="inv-hpl" value="0"></div>
+            <div class="form-grp"><label>HC (kWh)</label><input type="number" id="inv-hc" value="0"></div>
+            <div class="form-grp"><label>PS (KVA)</label><input type="number" id="inv-ps" value="260"></div>
+            <div class="form-grp"><label>RDPS (DH)</label><input type="number" id="inv-rdps" value="0"></div>
+            <div class="form-grp"><label>Total TTC</label><input type="number" id="inv-total" value="0"></div>
+            <div class="form-grp" style="grid-column:span 2"><label>Notes</label><input type="text" id="inv-notes" placeholder="Ex: RDPS 15 KVA..."></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn btn-success" onclick="submitInvoice()" style="flex:1">Enregistrer</button>
+            <button class="btn btn-ghost" onclick="toggleInvoiceForm()">Annuler</button>
+          </div>
+          <div id="invoiceFormMsg" style="margin-top:8px;font-size:0.82rem;"></div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card"><div class="card-header"><span class="card-title">Historique factures</span></div>
+        <div style="overflow-x:auto"><table id="invoiceTable" class="inv-table"></table></div>
+      </div>
+    </div>
+
+    <!-- ===== ALERTS ===== -->
+    <div class="page" id="page-alerts">
+      <div class="card"><div class="card-header"><span class="card-title">Toutes les alertes</span></div>
+        <div id="allAlertsList"><div class="alert-none">✅ Aucune alerte</div></div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div class="page" id="page-settings">
+      <div class="card"><div class="card-header"><span class="card-title">Centrale</span></div>
+        <div style="padding:8px 0;font-size:0.88rem;color:var(--text-2)">
+          <p style="margin-bottom:8px"><strong>Nom :</strong> FERME OUM AZZA-BBL</p>
+          <p style="margin-bottom:8px"><strong>Capacité :</strong> 480 kWc</p>
+          <p><strong>Collecte :</strong> Toutes les 5 min</p>
+        </div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Tarifs énergie</span></div><div id="settings-tarifs_energie"></div></div>
+      <div class="card"><div class="card-header"><span class="card-title">Puissance souscrite</span></div><div id="settings-puissance"></div></div>
+      <div class="card"><div class="card-header"><span class="card-title">Compteur</span></div><div id="settings-compteur"></div></div>
+      <div class="card"><div class="card-header"><span class="card-title">RDPS</span></div><div id="settings-rdps"></div></div>
+      <div class="card"><div class="card-header"><span class="card-title">Correction mesure</span></div><div id="settings-correction"></div></div>
+      <div class="card"><div class="card-header"><span class="card-title">Notifications</span></div>
+        <div style="padding:10px 0"><button id="btnNotifPermission" onclick="requestNotificationPermission()" class="btn btn-primary" style="width:100%">Activer les notifications push</button></div>
+      </div>
+
+      <!-- Dark mode -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Apparence</span></div>
+        <div class="theme-toggle">
+          <span class="toggle-label">Mode sombre</span>
+          <div class="toggle-track" id="darkToggle" onclick="toggleDarkMode()">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Utilisateurs</span>
+          <button class="btn btn-primary" onclick="toggleUserForm()" style="padding:5px 12px;font-size:0.72rem;">+ Ajouter</button>
+        </div>
+        <div id="addUserForm" style="display:none;padding-bottom:12px;border-bottom:1px solid var(--border-light);margin-bottom:10px;">
+          <div class="inv-form-grid">
+            <div class="form-grp"><label>Nom</label><input type="text" id="newUserName"></div>
+            <div class="form-grp"><label>Email</label><input type="email" id="newUserEmail"></div>
+            <div class="form-grp"><label>Mot de passe</label><input type="password" id="newUserPwd"></div>
+            <div class="form-grp"><label>Rôle</label><select id="newUserRole"><option value="engineer">Ingénieur</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-success" onclick="addUser()" style="flex:1;padding:8px">Créer</button><button class="btn btn-ghost" onclick="toggleUserForm()" style="padding:8px 14px">Annuler</button></div>
+          <div id="userFormMsg" style="margin-top:6px;font-size:0.8rem;"></div>
+        </div>
+        <div id="usersList" class="users-list"></div>
+      </div>
+      <div class="card" style="text-align:center">
+        <button onclick="api.logout()" class="btn btn-danger" style="width:100%">Se déconnecter</button>
+      </div>
+      <div style="text-align:center;padding:8px;color:var(--text-3);font-size:0.7rem;">BBL-ELECTRA Monitoring v2.0</div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showPage('dashboard')"><i data-lucide="activity"></i><span>Live</span></button>
+    <button class="nav-btn" onclick="showPage('stats')"><i data-lucide="bar-chart-3"></i><span>Stats</span></button>
+    <button class="nav-btn" onclick="showPage('factures')"><i data-lucide="receipt"></i><span>Factures</span></button>
+    <button class="nav-btn" onclick="showPage('alerts')"><i data-lucide="bell"></i><span>Alertes</span></button>
+    <button class="nav-btn" onclick="showPage('settings')"><i data-lucide="settings"></i><span>Réglages</span></button>
+  </nav>
+
+  <script src="/frontend/js/api.js"></script>
+  <script src="/frontend/js/app.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

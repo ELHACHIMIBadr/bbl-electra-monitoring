@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f8f9fc">
+  <title>BBL-ELECTRA — Connexion</title>
+  <link rel="stylesheet" href="/frontend/css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; background: linear-gradient(160deg, #f0fdf4 0%, #f8f9fc 40%, #ecfeff 100%); }
+    .login-card { background:white; border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); padding: 44px 32px 36px; max-width: 360px; width: 100%; text-align: center; border: 1px solid rgba(0,0,0,0.04); }
+    .login-logo { width: 52px; height: 52px; background: linear-gradient(140deg, #0d9488, #14b8a6); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: white; box-shadow: 0 4px 14px rgba(13,148,136,0.2); }
+    .login-logo svg { width: 24px; height: 24px; }
+    .login-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; color: #1e293b; }
+    .login-sub { font-size: 0.78rem; color: #94a3b8; margin-bottom: 30px; margin-top: 3px; font-weight: 500; }
+    .login-input { width: 100%; padding: 12px 16px; border: 1px solid #e8ecf1; border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; margin-bottom: 12px; background: #f8f9fc; color: #1e293b; transition: all 0.15s; }
+    .login-input:focus { outline: none; border-color: #0d9488; background: white; box-shadow: 0 0 0 3px rgba(13,148,136,0.08); }
+    .login-input::placeholder { color: #94a3b8; }
+    .login-error { color: #e11d48; font-size: 0.8rem; margin-top: 12px; display: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-logo"><i data-lucide="zap"></i></div>
+    <div class="login-title">BBL-ELECTRA</div>
+    <div class="login-sub">Monitoring — Ferme Oum Azza</div>
+    <input type="email" id="loginEmail" class="login-input" placeholder="Email" autocomplete="email">
+    <input type="password" id="loginPassword" class="login-input" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="doLogin()" style="width:100%;margin-top:8px;padding:13px;font-size:0.9rem;">Se connecter</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+  <script>
+    lucide.createIcons();
+    if(localStorage.getItem('bbl_token'))window.location.href='/';
+    async function doLogin(){
+      const email=document.getElementById('loginEmail').value,pw=document.getElementById('loginPassword').value,err=document.getElementById('loginError');
+      if(!email||!pw){err.textContent='Veuillez remplir tous les champs';err.style.display='block';return;}
+      try{const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});const d=await r.json();
+      if(r.ok&&d.token){localStorage.setItem('bbl_token',d.token);localStorage.setItem('bbl_user',JSON.stringify(d.user));window.location.href='/';}else{err.textContent=d.detail||'Identifiants incorrects';err.style.display='block';}}
+      catch(e){err.textContent='Erreur de connexion';err.style.display='block';}}
+    document.getElementById('loginPassword').addEventListener('keypress',e=>{if(e.key==='Enter')doLogin();});
+  </script>
+</body>
+</html>
