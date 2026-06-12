@@ -58,11 +58,25 @@ def get_realtime(plant_id: int, db: Session = Depends(get_db)):
 # HISTORIQUE
 # ============================================================
 @router.get("/history/{plant_id}")
-def get_history(plant_id: int, hours: int = Query(default=24, le=168), db: Session = Depends(get_db)):
-    since = datetime.now() - timedelta(hours=hours)
+def get_history(plant_id: int, hours: int = Query(default=24, le=168), date: str = Query(default=None), db: Session = Depends(get_db)):
+    from datetime import timezone, timedelta
+    MOROCCO_TZ = timezone(timedelta(hours=1))
+    now_morocco = datetime.now(MOROCCO_TZ).replace(tzinfo=None)
+
+    if date:
+        # Jour spécifique : 00:00 → 23:59
+        target = datetime.strptime(date, "%Y-%m-%d")
+        since = target.replace(hour=0, minute=0, second=0)
+        until = target.replace(hour=23, minute=59, second=59)
+    else:
+        # Aujourd'hui : depuis 00:00 heure Maroc
+        since = now_morocco.replace(hour=0, minute=0, second=0, microsecond=0)
+        until = now_morocco
+
     readings = db.query(EnergyReading).filter(
         EnergyReading.plant_id == plant_id,
-        EnergyReading.timestamp >= since
+        EnergyReading.timestamp >= since,
+        EnergyReading.timestamp <= until
     ).order_by(EnergyReading.timestamp.asc()).all()
 
     return [
@@ -83,14 +97,23 @@ def get_history(plant_id: int, hours: int = Query(default=24, le=168), db: Sessi
 # ============================================================
 @router.get("/daily-summary/{plant_id}")
 def get_daily_summary(plant_id: int, date: str = Query(default=None), db: Session = Depends(get_db)):
+    from datetime import timezone, timedelta
+    MOROCCO_TZ = timezone(timedelta(hours=1))
+    now_morocco = datetime.now(MOROCCO_TZ).replace(tzinfo=None)
+
     if date:
         target_date = datetime.strptime(date, "%Y-%m-%d").date()
     else:
-        target_date = datetime.now().date()
+        target_date = now_morocco.date()
+
+    # Bornes 00:00 → 23:59:59 heure Maroc
+    day_start = datetime.combine(target_date, datetime.min.time())
+    day_end = datetime.combine(target_date, datetime.max.time())
 
     aggregates = db.query(HourlyAggregate).filter(
         HourlyAggregate.plant_id == plant_id,
-        func.date(HourlyAggregate.hour_start) == target_date
+        HourlyAggregate.hour_start >= day_start,
+        HourlyAggregate.hour_start <= day_end
     ).all()
 
     if not aggregates:

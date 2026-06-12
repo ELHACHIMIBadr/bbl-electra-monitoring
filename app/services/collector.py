@@ -1,7 +1,7 @@
 """
 Collector - Collecte périodique des données FusionSolar
 """
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from app.services.fusionsolar import fusionsolar_service
 from app.models.models import Plant, EnergyReading, HourlyAggregate
@@ -13,6 +13,12 @@ from app.config import settings
 from app.database import SessionLocal
 from app.services.rules_engine import evaluate_rules
 import logging
+
+# Maroc = UTC+1
+MOROCCO_TZ = timezone(timedelta(hours=1))
+
+def now_morocco():
+    return datetime.now(MOROCCO_TZ).replace(tzinfo=None)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +78,7 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
         logger.warning(f"⚠️ Pas de données pour {plant.name}")
         return None
 
-    now = datetime.now()
+    now = now_morocco()
     tariff_period = get_tariff_period(now)
     season = get_season(now)
 
