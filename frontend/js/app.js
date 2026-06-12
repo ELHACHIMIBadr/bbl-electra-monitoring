@@ -561,7 +561,7 @@ async function init(){
   await loadMainChartHistory();
   await updateDashboard();
   startRefresh();
-  if('serviceWorker'in navigator)navigator.serviceWorker.register('/frontend/sw.js').catch(()=>{});
+  if('serviceWorker'in navigator)navigator.serviceWorker.register('/frontend/sw.js', {scope: '/'}).catch(()=>{});
   // Re-render Lucide icons for dynamic content
   setTimeout(()=>{if(typeof lucide!=='undefined')lucide.createIcons();},500);
 }
