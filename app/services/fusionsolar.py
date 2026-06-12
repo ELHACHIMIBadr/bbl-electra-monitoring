@@ -59,6 +59,16 @@ class FusionSolarService:
             plant_data = self.client.get_plant_stats(plant_id)
             last = self.client.get_last_plant_data(plant_data)
 
+            # Détecter si la centrale est hors ligne
+            # FusionSolar retourne status=1 (online) ou status=0 (offline)
+            station_status = last.get("stationStatus") or last.get("status") or last.get("connectStatus")
+            if isinstance(station_status, dict):
+                station_status = station_status.get("value")
+            
+            # Aussi: si productPower est None/absent = hors ligne
+            pv_raw = last.get("productPower")
+            is_offline = (pv_raw is None) or (station_status is not None and str(station_status) in ['0', '2', '3'])
+
             # Récupérer les économies solaires depuis FusionSolar
             # selfProvide = kWh autoconsommés (valeur monétaire disponible via station)
             solar_savings_kwh = last.get("totalSelfUsePower", 0)
@@ -97,13 +107,18 @@ class FusionSolarService:
                 # Ratios
                 "self_use_ratio": self._to_float(last.get("selfUsePowerRatioByProduct")),
                 "grid_ratio": self._to_float(last.get("buyPowerRatio")),
+                # Status
+                "is_offline": is_offline,
+                "station_status": station_status,
             }
 
             logger.info(
                 f"📊 {plant_id} — PV: {result['pv_power']:.1f} kW | "
                 f"Conso: {result['consumption_raw']:.1f} kW | "
+                f"Offline: {is_offline} | Status: {station_status} | "
                 f"Économies solaires: {result['solar_savings_dh']:.0f} DH"
             )
+            logger.debug(f"🔍 Clés FusionSolar disponibles: {list(last.keys())}")
 
             return result
 

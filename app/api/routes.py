@@ -46,7 +46,7 @@ def get_realtime(plant_id: int, db: Session = Depends(get_db)):
     MOROCCO_TZ = timezone(timedelta(hours=1))
     now_morocco = datetime.now(MOROCCO_TZ).replace(tzinfo=None)
     age_minutes = (now_morocco - reading.timestamp).total_seconds() / 60
-    is_offline = age_minutes > 15
+    is_offline = age_minutes > 15 or getattr(reading, 'is_offline', False)
 
     return {
         "timestamp": reading.timestamp.isoformat(),
