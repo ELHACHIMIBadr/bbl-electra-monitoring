@@ -258,11 +258,7 @@ def _send_offline_alert(db, plant):
 
     # Heure exacte du figement
     since_str = _frozen_since.strftime('%H:%M') if _frozen_since else now.strftime('%H:%M')
-    msg = (
-        f"⚠️ CENTRALE HORS LIGNE | {plant.name} | "
-        f"Arrêt détecté depuis {since_str} | "
-        f"Détection confirmée à {now.strftime('%H:%M')}"
-    )
+    msg = f"{since_str} — Centrale hors ligne · Vérifier smartLogger ou 4G"
     alert_log = AlertLog(
         rule_id=rule.id,
         plant_id=plant.id,
