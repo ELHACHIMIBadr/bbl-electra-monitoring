@@ -63,6 +63,13 @@ RULES = [
         "severity": AlertSeverity.WARNING,
         "cooldown_minutes": 120,
     },
+    {
+        "code": "PLANT_OFFLINE",
+        "name": "Centrale hors ligne",
+        "description": "Aucune donnée reçue depuis FusionSolar depuis plus de 15 minutes",
+        "severity": AlertSeverity.CRITICAL,
+        "cooldown_minutes": 60,
+    },
 ]
 
 
@@ -79,39 +86,35 @@ def evaluate_rules(reading: EnergyReading, db: Session):
 
     alerts_triggered = []
 
-    # --- R1: HP > 150 kW ---
+    # --- R1: HP > 150 kW (sur consumption_raw) ---
     if hp_start <= hour < hp_end:
-        if reading.consumption_corrected > 150:
+        if reading.consumption_raw > 150:
             alert = _trigger_alert(
                 db, reading, "HP_INSTANT",
-                reading.consumption_corrected, 150,
-                f"🔴 ALERTE HP | Conso: {reading.consumption_corrected:.0f} kW "
-                f"(seuil: 150 kW) | {now.strftime('%H:%M')}"
+                reading.consumption_raw, 150,
+                f"HP {now.strftime('%H:%M')} — Conso {reading.consumption_raw:.0f} kW · Inspecter et disjoncter"
             )
             if alert:
                 alerts_triggered.append(alert)
 
-    # --- R2: Nuit arrosage (00h-04h) > 180 kW ---
+    # --- R2: Nuit arrosage (00h-04h) > 180 kW (sur consumption_raw) ---
     if 0 <= hour < 4:
-        if reading.consumption_corrected > 180:
+        if reading.consumption_raw > 180:
             alert = _trigger_alert(
                 db, reading, "NIGHT_WATERING",
-                reading.consumption_corrected, 180,
-                f"🟠 ALERTE NUIT | Conso: {reading.consumption_corrected:.0f} kW "
-                f"(seuil: 180 kW) | Arrosage actif {now.strftime('%H:%M')}"
+                reading.consumption_raw, 180,
+                f"NUIT {now.strftime('%H:%M')} — Conso arrosage {reading.consumption_raw:.0f} kW · Inspecter et disjoncter"
             )
             if alert:
                 alerts_triggered.append(alert)
 
-    # --- R3: Nuit calme (04h-07h) > 150 kW ---
+    # --- R3: Nuit calme (04h-07h) > 150 kW (sur consumption_raw) ---
     if 4 <= hour < 7:
-        if reading.consumption_corrected > 150:
+        if reading.consumption_raw > 150:
             alert = _trigger_alert(
                 db, reading, "NIGHT_CALM",
-                reading.consumption_corrected, 150,
-                f"🔴 ALERTE NUIT | Conso: {reading.consumption_corrected:.0f} kW "
-                f"(seuil: 150 kW) | Période calme {now.strftime('%H:%M')} "
-                f"— Vérifier si une pompe tourne!"
+                reading.consumption_raw, 150,
+                f"NUIT CALME {now.strftime('%H:%M')} — Conso {reading.consumption_raw:.0f} kW · Inspecter et disjoncter"
             )
             if alert:
                 alerts_triggered.append(alert)
@@ -122,9 +125,7 @@ def evaluate_rules(reading: EnergyReading, db: Session):
             alert = _trigger_alert(
                 db, reading, "GRID_IMPORT_PEAK_SUN",
                 reading.grid_import, 50,
-                f"🟠 IMPORT RÉSEAU | {reading.grid_import:.0f} kW importés "
-                f"(seuil: 50 kW) | PV: {reading.pv_power:.0f} kW | "
-                f"Conso: {reading.consumption_corrected:.0f} kW | {now.strftime('%H:%M')}"
+                f"SOLAIRE {now.strftime('%H:%M')} — Import {reading.grid_import:.0f} kW · PV {reading.pv_power:.0f} kW · Délester ou vérifier onduleur"
             )
             if alert:
                 alerts_triggered.append(alert)
@@ -135,9 +136,7 @@ def evaluate_rules(reading: EnergyReading, db: Session):
             alert = _trigger_alert(
                 db, reading, "GRID_IMPORT_LATE_SUN",
                 reading.grid_import, 80,
-                f"🟠 IMPORT RÉSEAU | {reading.grid_import:.0f} kW importés "
-                f"(seuil: 80 kW) | PV: {reading.pv_power:.0f} kW | "
-                f"Conso: {reading.consumption_corrected:.0f} kW | {now.strftime('%H:%M')}"
+                f"FIN JOURNÉE {now.strftime('%H:%M')} — Import {reading.grid_import:.0f} kW · PV {reading.pv_power:.0f} kW · Délester avant {hp_start}h"
             )
             if alert:
                 alerts_triggered.append(alert)
@@ -148,10 +147,7 @@ def evaluate_rules(reading: EnergyReading, db: Session):
         alert = _trigger_alert(
             db, reading, "EXPORT_EXCESSIVE",
             cumul_export, 50,
-            f"🟠 EXPORT RÉSEAU | {cumul_export:.0f} kWh exportés aujourd'hui "
-            f"(seuil: 50 kWh) | Export instantané: {reading.grid_export:.0f} kW | "
-            f"PV: {reading.pv_power:.0f} kW | Conso: {reading.consumption_corrected:.0f} kW | "
-            f"{now.strftime('%H:%M')}"
+            f"EXPORT {now.strftime('%H:%M')} — {cumul_export:.0f} kWh exportés · Migrer des charges vers ce créneau"
         )
         if alert:
             alerts_triggered.append(alert)
