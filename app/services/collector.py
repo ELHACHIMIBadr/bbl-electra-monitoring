@@ -21,32 +21,43 @@ def now_morocco():
     return datetime.now(MOROCCO_TZ).replace(tzinfo=None)
 
 # Cache pour détecter les données figées
-_last_pv_values = []  # Historique des 3 dernières valeurs PV
+_last_pv_values = []  # Historique des dernières valeurs PV avec timestamps
 _is_frozen = False    # True si données figées (centrale hors ligne)
+_frozen_since = None  # Timestamp exact du début du figement
 
 def _check_frozen_data(pv_power: float) -> bool:
     """Détecte si FusionSolar retourne des données figées (centrale hors ligne)"""
-    global _last_pv_values, _is_frozen
+    global _last_pv_values, _is_frozen, _frozen_since
     now = now_morocco()
     hour = now.hour
-    
-    _last_pv_values.append(round(pv_power, 1))
+
+    _last_pv_values.append((now, round(pv_power, 1)))
     if len(_last_pv_values) > 4:
         _last_pv_values.pop(0)
-    
+
     # Vérifier seulement pendant les heures de jour (7h-19h)
     if 7 <= hour <= 19 and len(_last_pv_values) >= 3:
-        # Si les 3 dernières valeurs sont identiques ET non nulles → figées
-        if len(set(_last_pv_values[-3:])) == 1 and _last_pv_values[-1] > 5:
+        last_3_vals = [v for _, v in _last_pv_values[-3:]]
+        if len(set(last_3_vals)) == 1 and last_3_vals[-1] > 5:
+            if not _is_frozen:
+                # Premier déclenchement — on remonte au 1er sample figé
+                _frozen_since = _last_pv_values[-3][0]  # timestamp du 1er des 3 identiques
+                logger.warning(f"🔴 Figement détecté depuis {_frozen_since.strftime('%H:%M')}")
             _is_frozen = True
             return True
-    
+
     # Si PV est nul en plein jour → hors ligne
     if 9 <= hour <= 16 and pv_power < 1:
+        if not _is_frozen:
+            _frozen_since = now
         _is_frozen = True
         return True
-    
+
+    # Données valides → réinitialiser
+    if _is_frozen:
+        logger.info(f"✅ Centrale de nouveau en ligne après figement depuis {_frozen_since}")
     _is_frozen = False
+    _frozen_since = None
     return False
 
 logger = logging.getLogger(__name__)
@@ -125,6 +136,7 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
     frozen = _check_frozen_data(data["pv_power"])
     if frozen:
         logger.warning(f"⚠️ Données figées — centrale hors ligne. Collecte ignorée (PV: {data['pv_power']} kW)")
+        _purge_frozen_data(db, plant)  # Purger les données corrompues
         _send_offline_alert(db, plant)
         return None  # ← On ne sauvegarde rien
 
@@ -154,8 +166,81 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
     return reading
 
 
+def _purge_frozen_data(db, plant):
+    """
+    Purge les EnergyReading et HourlyAggregate corrompus
+    depuis le début du figement (_frozen_since).
+    Exécuté seulement au premier cycle de détection.
+    """
+    global _frozen_since
+    if not _frozen_since:
+        return
+
+    # Purger une seule fois par événement de figement
+    # (on vérifie si des données existent encore depuis frozen_since)
+    corrupted_readings = db.query(EnergyReading).filter(
+        EnergyReading.plant_id == plant.id,
+        EnergyReading.timestamp >= _frozen_since
+    ).count()
+
+    if corrupted_readings == 0:
+        return  # Déjà purgé
+
+    # Supprimer les readings figés
+    deleted_r = db.query(EnergyReading).filter(
+        EnergyReading.plant_id == plant.id,
+        EnergyReading.timestamp >= _frozen_since
+    ).delete()
+
+    # Supprimer les agrégats horaires affectés
+    frozen_hour = _frozen_since.replace(minute=0, second=0, microsecond=0)
+    deleted_a = db.query(HourlyAggregate).filter(
+        HourlyAggregate.plant_id == plant.id,
+        HourlyAggregate.hour_start >= frozen_hour
+    ).delete()
+
+    # Recalculer l'agrégat de l'heure du début du figement
+    # (cette heure peut avoir des données valides AVANT le figement)
+    valid_readings = db.query(EnergyReading).filter(
+        EnergyReading.plant_id == plant.id,
+        EnergyReading.timestamp >= frozen_hour,
+        EnergyReading.timestamp < _frozen_since
+    ).all()
+
+    if valid_readings:
+        n = len(valid_readings)
+        from app.utils.tariffs import get_tariff_rate
+        agg = HourlyAggregate(
+            plant_id=plant.id,
+            hour_start=frozen_hour,
+            avg_pv_power=sum(r.pv_power for r in valid_readings) / n,
+            avg_consumption=sum(r.consumption_corrected for r in valid_readings) / n,
+            avg_grid_import=sum(r.grid_import for r in valid_readings) / n,
+            avg_grid_export=sum(r.grid_export for r in valid_readings) / n,
+            avg_self_consumption=sum(r.self_consumption for r in valid_readings) / n,
+            sample_count=n,
+            tariff_period=valid_readings[0].tariff_period,
+            season=valid_readings[0].season
+        )
+        agg.pv_energy_kwh = agg.avg_pv_power * (n / 12)  # Pondéré par le temps réel
+        agg.consumption_kwh = agg.avg_consumption * (n / 12)
+        agg.grid_import_kwh = agg.avg_grid_import * (n / 12)
+        agg.grid_export_kwh = agg.avg_grid_export * (n / 12)
+        agg.self_consumption_kwh = agg.avg_self_consumption * (n / 12)
+        tariff = get_tariff_rate(agg.tariff_period, db)
+        agg.estimated_cost_dh = agg.grid_import_kwh * tariff
+        agg.savings_dh = agg.self_consumption_kwh * tariff
+        db.add(agg)
+        logger.info(f"✅ Agrégat {frozen_hour.strftime('%H:%M')} recalculé avec {n} samples valides")
+
+    logger.warning(
+        f"🗑️ Purge données figées: {deleted_r} readings + {deleted_a} agrégats "
+        f"supprimés depuis {_frozen_since.strftime('%H:%M')}"
+    )
+
+
 def _send_offline_alert(db, plant):
-    """Envoyer une alerte centrale hors ligne"""
+    """Envoyer une alerte centrale hors ligne avec heure exacte"""
     from app.models.models import AlertRule, AlertLog, AlertStatus
     from app.services.notifications import send_alert
     from datetime import timedelta
@@ -170,7 +255,14 @@ def _send_offline_alert(db, plant):
     ).first()
     if recent:
         return
-    msg = f"⚠️ CENTRALE HORS LIGNE | {plant.name} | Aucune donnée depuis +15 min | {now.strftime('%H:%M')}"
+
+    # Heure exacte du figement
+    since_str = _frozen_since.strftime('%H:%M') if _frozen_since else now.strftime('%H:%M')
+    msg = (
+        f"⚠️ CENTRALE HORS LIGNE | {plant.name} | "
+        f"Arrêt détecté depuis {since_str} | "
+        f"Détection confirmée à {now.strftime('%H:%M')}"
+    )
     alert_log = AlertLog(
         rule_id=rule.id,
         plant_id=plant.id,
