@@ -534,5 +534,5 @@ def get_solar_savings(plant_id: int, period: str = Query(default="month"), db: S
         "total_selfuse_kwh": round(total_selfuse, 1),
         "total_import_cost_dh": round(total_import_cost, 1),
         "total_export_kwh": round(total_export, 1),
-        "export_lost_dh": round(total_export * get_tariff_rate(TariffPeriod.HPL), 1)
+        "export_lost_dh": round(total_export * get_tariff_rate(TariffPeriod.HPL, db), 1)
     }

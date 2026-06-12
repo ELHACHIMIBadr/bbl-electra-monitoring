@@ -121,10 +121,12 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
         consumption_corrected
     )
 
-    # Détecter données figées
+    # Détecter données figées — NE PAS stocker si hors ligne
     frozen = _check_frozen_data(data["pv_power"])
     if frozen:
-        logger.warning(f"⚠️ Données figées détectées (centrale probablement hors ligne) — PV: {data['pv_power']} kW")
+        logger.warning(f"⚠️ Données figées — centrale hors ligne. Collecte ignorée (PV: {data['pv_power']} kW)")
+        _send_offline_alert(db, plant)
+        return None  # ← On ne sauvegarde rien
 
     reading = EnergyReading(
         plant_id=plant.id,
@@ -150,6 +152,37 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
 
     _update_hourly_aggregate(db, plant, reading)
     return reading
+
+
+def _send_offline_alert(db, plant):
+    """Envoyer une alerte centrale hors ligne"""
+    from app.models.models import AlertRule, AlertLog, AlertStatus
+    from app.services.notifications import send_alert
+    from datetime import timedelta
+    now = now_morocco()
+    rule = db.query(AlertRule).filter(AlertRule.rule_code == 'PLANT_OFFLINE').first()
+    if not rule or not rule.is_active:
+        return
+    cooldown_time = now - timedelta(minutes=rule.cooldown_minutes)
+    recent = db.query(AlertLog).filter(
+        AlertLog.rule_id == rule.id,
+        AlertLog.triggered_at > cooldown_time
+    ).first()
+    if recent:
+        return
+    msg = f"⚠️ CENTRALE HORS LIGNE | {plant.name} | Aucune donnée depuis +15 min | {now.strftime('%H:%M')}"
+    alert_log = AlertLog(
+        rule_id=rule.id,
+        plant_id=plant.id,
+        triggered_at=now,
+        measured_value=0,
+        threshold_value=0,
+        message=msg,
+        status=AlertStatus.ACTIVE
+    )
+    db.add(alert_log)
+    send_alert(msg, rule.notify_telegram, rule.notify_email)
+    logger.warning(f"🚨 {msg}")
 
 
 def _update_hourly_aggregate(db: Session, plant: Plant, reading: EnergyReading):
@@ -188,8 +221,8 @@ def _update_hourly_aggregate(db: Session, plant: Plant, reading: EnergyReading):
     aggregate.grid_export_kwh = aggregate.avg_grid_export
     aggregate.self_consumption_kwh = aggregate.avg_self_consumption
 
-    # Coût import
-    tariff = get_tariff_rate(aggregate.tariff_period)
+    # Coût import — tarifs lus depuis la DB
+    tariff = get_tariff_rate(aggregate.tariff_period, db)
     aggregate.estimated_cost_dh = aggregate.grid_import_kwh * tariff
 
     # Économies solaires = autoconsommation × tarif de la tranche

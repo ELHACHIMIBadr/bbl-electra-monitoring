@@ -1,7 +1,7 @@
 """
 Bilans automatiques - B2 Journalier / B3 Mensuel
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.models import (
@@ -15,6 +15,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+MOROCCO_TZ = timezone(timedelta(hours=1))
+
+def now_morocco():
+    return datetime.now(MOROCCO_TZ).replace(tzinfo=None)
+
 
 # ============================================================
 # B2 — BILAN JOURNALIER (à 00:00)
@@ -24,7 +29,7 @@ def generate_daily_report():
     db = SessionLocal()
 
     try:
-        yesterday = (datetime.now() - timedelta(days=1)).date()
+        yesterday = (now_morocco() - timedelta(days=1)).date()
         yesterday_start = datetime.combine(yesterday, datetime.min.time())
         yesterday_end = datetime.combine(yesterday, datetime.max.time())
 
@@ -70,7 +75,12 @@ def generate_daily_report():
         total_selfuse = sum(t["selfuse"] for t in totals.values())
         total_cost = sum(t["cost"] for t in totals.values())
         total_savings = sum(t["savings"] for t in totals.values())
-        export_lost_dh = total_export * get_tariff_rate(TariffPeriod.HPL)
+
+        # Export perdu calculé par tranche (tarif réel de chaque tranche)
+        export_lost_dh = sum(
+            totals[p]["export"] * get_tariff_rate(p, db)
+            for p in [TariffPeriod.HC, TariffPeriod.HPL, TariffPeriod.HP]
+        )
 
         alert_count = db.query(func.count(AlertLog.id)).filter(
             AlertLog.plant_id == plant.id,
