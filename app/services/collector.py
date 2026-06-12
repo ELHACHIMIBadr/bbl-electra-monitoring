@@ -302,12 +302,13 @@ def _update_hourly_aggregate(db: Session, plant: Plant, reading: EnergyReading):
     aggregate.avg_self_consumption = _update_avg(aggregate.avg_self_consumption, reading.self_consumption, n)
     aggregate.sample_count = n + 1
 
-    # kWh = moyenne × 1h
-    aggregate.pv_energy_kwh = aggregate.avg_pv_power
-    aggregate.consumption_kwh = aggregate.avg_consumption
-    aggregate.grid_import_kwh = aggregate.avg_grid_import
-    aggregate.grid_export_kwh = aggregate.avg_grid_export
-    aggregate.self_consumption_kwh = aggregate.avg_self_consumption
+    # kWh = moyenne × fraction d'heure réelle (sample_count/12 car 12 samples = 1h complète)
+    fraction = (n + 1) / 12
+    aggregate.pv_energy_kwh = aggregate.avg_pv_power * fraction
+    aggregate.consumption_kwh = aggregate.avg_consumption * fraction
+    aggregate.grid_import_kwh = aggregate.avg_grid_import * fraction
+    aggregate.grid_export_kwh = aggregate.avg_grid_export * fraction
+    aggregate.self_consumption_kwh = aggregate.avg_self_consumption * fraction
 
     # Coût import — tarifs lus depuis la DB
     tariff = get_tariff_rate(aggregate.tariff_period, db)
