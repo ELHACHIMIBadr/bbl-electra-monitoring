@@ -42,6 +42,12 @@ def get_realtime(plant_id: int, db: Session = Depends(get_db)):
     if not reading:
         return {"error": "Aucune donnée disponible"}
 
+    from datetime import timezone, timedelta
+    MOROCCO_TZ = timezone(timedelta(hours=1))
+    now_morocco = datetime.now(MOROCCO_TZ).replace(tzinfo=None)
+    age_minutes = (now_morocco - reading.timestamp).total_seconds() / 60
+    is_offline = age_minutes > 15
+
     return {
         "timestamp": reading.timestamp.isoformat(),
         "pv_power": reading.pv_power,
@@ -51,6 +57,8 @@ def get_realtime(plant_id: int, db: Session = Depends(get_db)):
         "grid_export": reading.grid_export,
         "self_consumption": reading.self_consumption,
         "tariff_period": reading.tariff_period.value if reading.tariff_period else None,
+        "is_offline": is_offline,
+        "data_age_minutes": round(age_minutes, 1),
     }
 
 

@@ -25,7 +25,7 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="live-indicator"><div class="live-dot" id="liveDot"></div>Live</div>
+      <div class="live-indicator"><div class="live-dot" id="liveDot"></div><span id="liveText">Live</span></div>
       <div class="tariff-pill tariff-HPL" id="tariffBadge">HPL</div>
     </div>
   </header>
@@ -35,6 +35,15 @@
 
     <!-- ===== DASHBOARD ===== -->
     <div class="page active" id="page-dashboard">
+
+      <!-- BANNER HORS LIGNE -->
+      <div id="offline-banner" style="display:none;align-items:center;gap:12px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:14px 18px;margin-bottom:16px;">
+        <span style="font-size:24px;">⚠️</span>
+        <div>
+          <div style="font-weight:700;color:#92400e;font-size:15px;">Centrale hors ligne</div>
+          <div style="color:#b45309;font-size:13px;">Aucune donnée reçue depuis plus de 15 minutes. Vérifiez la connexion FusionSolar.</div>
+        </div>
+      </div>
 
       <!-- KPIs -->
       <div class="kpi-grid">

@@ -29,6 +29,18 @@ async function updateDashboard() {
   try {
     const d = await api.getRealtime(currentPlantId);
     if (d.error) return;
+
+    // === DÉTECTION HORS LIGNE ===
+    const offlineBanner = document.getElementById('offline-banner');
+    if (d.is_offline) {
+      if (offlineBanner) offlineBanner.style.display = 'flex';
+      document.getElementById('liveDot').style.background = '#94a3b8';
+      document.getElementById('liveText').textContent = 'Hors ligne';
+      return; // Ne pas mettre à jour les KPIs avec des données périmées
+    } else {
+      if (offlineBanner) offlineBanner.style.display = 'none';
+      document.getElementById('liveText').textContent = 'Live';
+    }
     document.getElementById('kpi-pv').textContent = fmt(d.pv_power);
     document.getElementById('kpi-conso').textContent = fmt(d.consumption_corrected);
     document.getElementById('kpi-import').textContent = fmt(d.grid_import);
