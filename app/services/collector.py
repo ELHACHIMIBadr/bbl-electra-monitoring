@@ -20,6 +20,35 @@ MOROCCO_TZ = timezone(timedelta(hours=1))
 def now_morocco():
     return datetime.now(MOROCCO_TZ).replace(tzinfo=None)
 
+# Cache pour détecter les données figées
+_last_pv_values = []  # Historique des 3 dernières valeurs PV
+_is_frozen = False    # True si données figées (centrale hors ligne)
+
+def _check_frozen_data(pv_power: float) -> bool:
+    """Détecte si FusionSolar retourne des données figées (centrale hors ligne)"""
+    global _last_pv_values, _is_frozen
+    now = now_morocco()
+    hour = now.hour
+    
+    _last_pv_values.append(round(pv_power, 1))
+    if len(_last_pv_values) > 4:
+        _last_pv_values.pop(0)
+    
+    # Vérifier seulement pendant les heures de jour (7h-19h)
+    if 7 <= hour <= 19 and len(_last_pv_values) >= 3:
+        # Si les 3 dernières valeurs sont identiques ET non nulles → figées
+        if len(set(_last_pv_values[-3:])) == 1 and _last_pv_values[-1] > 5:
+            _is_frozen = True
+            return True
+    
+    # Si PV est nul en plein jour → hors ligne
+    if 9 <= hour <= 16 and pv_power < 1:
+        _is_frozen = True
+        return True
+    
+    _is_frozen = False
+    return False
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,6 +120,11 @@ def _collect_plant_data(db: Session, plant: Plant) -> EnergyReading:
         data["pv_power"],
         consumption_corrected
     )
+
+    # Détecter données figées
+    frozen = _check_frozen_data(data["pv_power"])
+    if frozen:
+        logger.warning(f"⚠️ Données figées détectées (centrale probablement hors ligne) — PV: {data['pv_power']} kW")
 
     reading = EnergyReading(
         plant_id=plant.id,

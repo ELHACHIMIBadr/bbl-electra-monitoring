@@ -43,10 +43,11 @@ def get_realtime(plant_id: int, db: Session = Depends(get_db)):
         return {"error": "Aucune donnée disponible"}
 
     from datetime import timezone, timedelta
+    from app.services.collector import _is_frozen
     MOROCCO_TZ = timezone(timedelta(hours=1))
     now_morocco = datetime.now(MOROCCO_TZ).replace(tzinfo=None)
     age_minutes = (now_morocco - reading.timestamp).total_seconds() / 60
-    is_offline = age_minutes > 15 or getattr(reading, 'is_offline', False)
+    is_offline = age_minutes > 15 or _is_frozen
 
     return {
         "timestamp": reading.timestamp.isoformat(),
