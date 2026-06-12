@@ -289,7 +289,15 @@
       <div class="card"><div class="card-header"><span class="card-title">RDPS</span></div><div id="settings-rdps"></div></div>
       <div class="card"><div class="card-header"><span class="card-title">Correction mesure</span></div><div id="settings-correction"></div></div>
       <div class="card"><div class="card-header"><span class="card-title">Notifications</span></div>
-        <div style="padding:10px 0"><button id="btnNotifPermission" onclick="requestNotificationPermission()" class="btn btn-primary" style="width:100%">Activer les notifications push</button></div>
+        <div style="padding:12px 0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:0.9rem;color:var(--text-1)">Notifications Push</span>
+            <div class="toggle-track" id="pushToggle" onclick="togglePush()">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+          <div id="pushStatus" style="font-size:0.82rem;"></div>
+        </div>
       </div>
 
       <!-- Dark mode -->

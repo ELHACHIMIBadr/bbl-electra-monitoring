@@ -19,7 +19,7 @@ function showPage(p) {
   document.querySelectorAll('.nav-btn')[m[p]]?.classList.add('active');
   if (p==='stats') loadStatsPage();
   if (p==='alerts') loadAllAlerts();
-  if (p==='settings') { loadSettings(); loadUsers(); }
+  if (p==='settings') { loadSettings(); loadUsers(); initPushState(); }
   if (p==='factures') loadInvoices();
   if (typeof lucide!=='undefined') setTimeout(()=>lucide.createIcons(),100);
 }
@@ -400,7 +400,91 @@ function getHeaders() {
   return headers;
 }
 
-// === DARK MODE ===
+// === PUSH NOTIFICATIONS ===
+async function subscribeToPush() {
+  const statusEl = document.getElementById('pushStatus');
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌ Push non supporté sur ce navigateur</span>';
+      return;
+    }
+
+    // Demander permission
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌ Permission refusée</span>';
+      return;
+    }
+
+    // Récupérer la clé publique VAPID
+    const vapidRes = await fetch('/api/v1/push/vapid-key', { headers: getHeaders() });
+    const { publicKey } = await vapidRes.json();
+    if (!publicKey) throw new Error('Clé VAPID manquante');
+
+    // Convertir la clé VAPID
+    const applicationServerKey = urlBase64ToUint8Array(publicKey);
+
+    // Enregistrer le service worker et s'abonner
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    });
+
+    // Envoyer la subscription au serveur
+    const res = await fetch('/api/v1/push/subscribe', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ subscription: subscription.toJSON() })
+    });
+    const data = await res.json();
+
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✅ Notifications activées !</span>';
+    document.getElementById('pushToggle')?.classList.add('active');
+    localStorage.setItem('bbl_push', 'enabled');
+  } catch (e) {
+    console.error('Push subscribe error:', e);
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">❌ Erreur: ${e.message}</span>`;
+  }
+}
+
+async function unsubscribeFromPush() {
+  const statusEl = document.getElementById('pushStatus');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    localStorage.removeItem('bbl_push');
+    document.getElementById('pushToggle')?.classList.remove('active');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--orange)">🔕 Notifications désactivées</span>';
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">❌ Erreur: ${e.message}</span>`;
+  }
+}
+
+function togglePush() {
+  const enabled = localStorage.getItem('bbl_push') === 'enabled';
+  if (enabled) unsubscribeFromPush();
+  else subscribeToPush();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function initPushState() {
+  const toggle = document.getElementById('pushToggle');
+  const statusEl = document.getElementById('pushStatus');
+  if (!toggle) return;
+  const enabled = localStorage.getItem('bbl_push') === 'enabled';
+  if (enabled) {
+    toggle.classList.add('active');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✅ Notifications activées</span>';
+  }
+}
 function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';
   document.documentElement.setAttribute('data-theme', isDark?'':'dark');

@@ -65,8 +65,8 @@ self.addEventListener('push', event => {
 
   const options = {
     body: data.body || data.message,
-    icon: '/frontend/assets/icon-192.png',
-    badge: '/frontend/assets/icon-192.png',
+    icon: '/frontend/icons/icon-192x192.png',
+    badge: '/frontend/icons/icon-72x72.png',
     vibrate: [200, 100, 200],
     tag: data.tag || 'alert',
     renotify: true,
