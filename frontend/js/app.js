@@ -348,16 +348,15 @@ async function loadStatsPage() {
       document.getElementById('stats-lost').textContent = exportLost.toFixed(0);
 
       // Coûts par tranche
-      const b = s.breakdown||{};
       const costsBlock = document.getElementById('stats-costs-block');
-      if (b.HC || b.HPL || b.HP) {
+      if (s.breakdown?.HC || s.breakdown?.HPL || s.breakdown?.HP) {
         if (costsBlock) costsBlock.style.display = 'block';
-        document.getElementById('stats-cost-hc').textContent = b.HC ? `${b.HC.cost_dh.toFixed(0)} DH` : '--';
-        document.getElementById('stats-kwh-hc').textContent = b.HC ? b.HC.kwh_import.toFixed(0) : '--';
-        document.getElementById('stats-cost-hpl').textContent = b.HPL ? `${b.HPL.cost_dh.toFixed(0)} DH` : '--';
-        document.getElementById('stats-kwh-hpl').textContent = b.HPL ? b.HPL.kwh_import.toFixed(0) : '--';
-        document.getElementById('stats-cost-hp').textContent = b.HP ? `${b.HP.cost_dh.toFixed(0)} DH` : '--';
-        document.getElementById('stats-kwh-hp').textContent = b.HP ? b.HP.kwh_import.toFixed(0) : '--';
+        document.getElementById('stats-cost-hc').textContent = s.breakdown.HC ? `${s.breakdown.HC.cost_dh.toFixed(0)} DH` : '--';
+        document.getElementById('stats-kwh-hc').textContent = s.breakdown.HC ? s.breakdown.HC.kwh_import.toFixed(0) : '--';
+        document.getElementById('stats-cost-hpl').textContent = s.breakdown.HPL ? `${s.breakdown.HPL.cost_dh.toFixed(0)} DH` : '--';
+        document.getElementById('stats-kwh-hpl').textContent = s.breakdown.HPL ? s.breakdown.HPL.kwh_import.toFixed(0) : '--';
+        document.getElementById('stats-cost-hp').textContent = s.breakdown.HP ? `${s.breakdown.HP.cost_dh.toFixed(0)} DH` : '--';
+        document.getElementById('stats-kwh-hp').textContent = s.breakdown.HP ? s.breakdown.HP.kwh_import.toFixed(0) : '--';
         document.getElementById('stats-cost-total').textContent = `${s.total_cost_dh?.toFixed(0)||'0'} DH`;
       } else {
         if (costsBlock) costsBlock.style.display = 'none';
