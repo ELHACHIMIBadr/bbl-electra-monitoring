@@ -10,7 +10,7 @@ function getHeaders() {
 const api = {
   async getPlants() { return (await fetch(`${API_BASE}/plants`, { headers: getHeaders() })).json(); },
   async getRealtime(id = 1) { return (await fetch(`${API_BASE}/realtime/${id}`, { headers: getHeaders() })).json(); },
-  async getHistory(id = 1, hours = 24) { return (await fetch(`${API_BASE}/history/${id}?hours=${hours}`, { headers: getHeaders() })).json(); },
+  async getHistory(id = 1, hours = 24, date = null) { return (await fetch(`${API_BASE}/history/${id}?hours=${hours}${date ? `&date=${date}` : ''}`, { headers: getHeaders() })).json(); },
   async getDailySummary(id = 1, date = null) { return (await fetch(`${API_BASE}/daily-summary/${id}${date ? `?date=${date}` : ''}`, { headers: getHeaders() })).json(); },
   async getAlerts(status = 'all', limit = 20) { return (await fetch(`${API_BASE}/alerts?status=${status}&limit=${limit}`, { headers: getHeaders() })).json(); },
   async getInvoices() { return (await fetch(`${API_BASE}/invoices`, { headers: getHeaders() })).json(); },

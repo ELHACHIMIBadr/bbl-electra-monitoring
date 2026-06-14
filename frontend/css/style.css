@@ -241,6 +241,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text-1); li
 .alert-body { flex: 1; }
 .alert-msg { font-size: 0.8rem; line-height: 1.45; color: var(--text-1); }
 .alert-ts { font-family: var(--mono); font-size: 0.63rem; color: var(--text-3); margin-top: 2px; }
+.alert-day-group { margin-bottom: 16px; }
+.alert-day-header { font-size: 0.78rem; font-weight: 700; color: var(--text-2); text-transform: capitalize; padding: 6px 0 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.alert-day-count { background: var(--surface-2); color: var(--text-2); border-radius: 20px; padding: 1px 8px; font-size: 0.72rem; font-weight: 600; }
 .alert-none { text-align: center; padding: 28px 0; color: var(--text-3); font-size: 0.85rem; }
 
 /* ==================== BOTTOM NAV ==================== */

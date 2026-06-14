@@ -168,9 +168,31 @@ async function loadRecentAlerts() {
 }
 async function loadAllAlerts() {
   try {
-    const a = await api.getAlerts('all',50); const c = document.getElementById('allAlertsList');
-    if(!a?.length){c.innerHTML='<div class="alert-none">✅ Aucune alerte</div>';return;}
-    c.innerHTML=a.map(x=>`<div class="alert-row"><div class="alert-dot ${x.severity||'warning'}"></div><div class="alert-body"><div class="alert-msg">${x.message||x.rule}</div><div class="alert-ts">${fmtTime(x.triggered_at)} — ${x.rule}</div></div></div>`).join('');
+    const a = await api.getAlerts('all', 100);
+    const c = document.getElementById('allAlertsList');
+    if (!a?.length) { c.innerHTML = '<div class="alert-none">✅ Aucune alerte</div>'; return; }
+
+    // Grouper par jour
+    const groups = {};
+    a.forEach(x => {
+      const dt = new Date(x.triggered_at);
+      const dayKey = dt.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (!groups[dayKey]) groups[dayKey] = [];
+      groups[dayKey].push(x);
+    });
+
+    c.innerHTML = Object.entries(groups).map(([day, items]) => `
+      <div class="alert-day-group">
+        <div class="alert-day-header">${day} <span class="alert-day-count">${items.length}</span></div>
+        ${items.map(x => `
+          <div class="alert-row">
+            <div class="alert-dot ${x.severity || 'warning'}"></div>
+            <div class="alert-body">
+              <div class="alert-msg">${x.message || x.rule}</div>
+              <div class="alert-ts">${new Date(x.triggered_at).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})} — ${x.rule}</div>
+            </div>
+          </div>`).join('')}
+      </div>`).join('');
   } catch(e) {}
 }
 
@@ -310,7 +332,7 @@ async function loadStatsPage() {
   else label = d.getFullYear().toString();
   document.getElementById('statsLabel').textContent = label;
 
-  if (statsView==='day') {
+  if (statsView === 'day') {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     try {
       const s = await api.getDailySummary(currentPlantId, dateStr);
@@ -326,9 +348,16 @@ async function loadStatsPage() {
       document.getElementById('stats-lost').textContent = exportLost.toFixed(0);
       renderStatsDonuts(s);
 
-      // Day chart from history
-      const hist = await api.getHistory(currentPlantId, 24);
-      renderStatsChart(hist?.map(r=>new Date(r.timestamp).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})), hist?.map(r=>r.pv_power), hist?.map(r=>r.consumption), 'kW');
+      // Courbe synchronisée avec la date sélectionnée
+      const hist = await api.getHistory(currentPlantId, 24, dateStr);
+      renderStatsChart(
+        hist?.map(r => new Date(r.timestamp).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})),
+        hist?.map(r => r.pv_power),
+        hist?.map(r => r.consumption),
+        hist?.map(r => r.grid_import),
+        hist?.map(r => r.grid_export),
+        'kW'
+      );
     } catch(e) { clearStatsKpis(); }
   } else {
     // Month or Year - use aggregated data
@@ -383,14 +412,50 @@ function renderStatsDonuts(s) {
   statsDonutConso = new Chart(document.getElementById('statsDonutConso'),{type:'doughnut',data:{labels:['Depuis PV','Importé'],datasets:[{data:[su,s.total_import_kwh||0],backgroundColor:['#0d9488','#e11d48'],borderWidth:0,cutout:'75%'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 }
 
-function renderStatsChart(labels, pvData, consoData, unit) {
-  if(statsChart) statsChart.destroy();
-  if(!labels?.length) return;
-  document.getElementById('statsChartTitle').textContent = statsView==='day'?'Production vs Consommation':'Production vs Consommation mensuelle';
-  statsChart = new Chart(document.getElementById('statsChart'),{type:statsView==='day'?'line':'bar',data:{labels,datasets:[
-    {label:'Production PV',data:pvData,borderColor:'#d97706',backgroundColor:statsView==='day'?'rgba(217,119,6,0.05)':'rgba(217,119,6,0.6)',fill:statsView==='day',tension:0.35,pointRadius:0,borderWidth:1.8,borderRadius:statsView==='day'?0:6},
-    {label:'Consommation',data:consoData,borderColor:'#e11d48',backgroundColor:statsView==='day'?'rgba(225,29,72,0.04)':'rgba(225,29,72,0.6)',fill:statsView==='day',tension:0.35,pointRadius:0,borderWidth:1.8,borderRadius:statsView==='day'?0:6}
-  ]},options:{...CHART_OPTS,plugins:{legend:{labels:{color:TC,usePointStyle:true,pointStyle:'circle'}}},scales:{x:{grid:{color:GC},ticks:{color:TC}},y:{grid:{color:GC},ticks:{color:TC,callback:v=>`${v} ${unit}`}}}}});
+// Toggle datasets sur les graphiques
+function toggleDataset(chartVar, index) {
+  const chart = window[chartVar];
+  if (!chart) return;
+  const meta = chart.getDatasetMeta(index);
+  meta.hidden = !meta.hidden;
+  chart.update();
+}
+
+function renderStatsChart(labels, pvData, consoData, importData, exportData, unit) {
+  if (statsChart) statsChart.destroy();
+  if (!labels?.length) return;
+  document.getElementById('statsChartTitle').textContent = statsView === 'day' ? 'Production vs Consommation' : 'Production vs Consommation mensuelle';
+  const isDay = statsView === 'day';
+  statsChart = new Chart(document.getElementById('statsChart'), {
+    type: isDay ? 'line' : 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Production PV', data: pvData, borderColor: '#d97706', backgroundColor: isDay ? 'rgba(217,119,6,0.05)' : 'rgba(217,119,6,0.6)', fill: isDay, tension: 0.35, pointRadius: 0, borderWidth: 1.8, borderRadius: isDay ? 0 : 6 },
+        { label: 'Consommation', data: consoData, borderColor: '#0284c7', backgroundColor: isDay ? 'rgba(2,132,199,0.05)' : 'rgba(2,132,199,0.6)', fill: isDay, tension: 0.35, pointRadius: 0, borderWidth: 1.8, borderRadius: isDay ? 0 : 6 },
+        { label: 'Import', data: importData || [], borderColor: '#e11d48', backgroundColor: isDay ? 'rgba(225,29,72,0.03)' : 'rgba(225,29,72,0.4)', fill: isDay, tension: 0.35, pointRadius: 0, borderWidth: 1.2, borderDash: [5, 5], borderRadius: isDay ? 0 : 4 },
+        { label: 'Export', data: exportData || [], borderColor: '#ea580c', backgroundColor: isDay ? 'rgba(234,88,12,0.03)' : 'rgba(234,88,12,0.4)', fill: isDay, tension: 0.35, pointRadius: 0, borderWidth: 1.2, borderDash: [3, 3], borderRadius: isDay ? 0 : 4 }
+      ]
+    },
+    options: {
+      ...CHART_OPTS,
+      plugins: {
+        legend: {
+          labels: { color: TC, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } },
+          onClick: (e, legendItem, legend) => {
+            const index = legendItem.datasetIndex;
+            const meta = legend.chart.getDatasetMeta(index);
+            meta.hidden = !meta.hidden;
+            legend.chart.update();
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: GC }, ticks: { color: TC, font: { size: 10 }, maxTicksLimit: 12 } },
+        y: { grid: { color: GC }, ticks: { color: TC, callback: v => `${v} ${unit}` } }
+      }
+    }
+  });
 }
 
 function getHeaders() {
