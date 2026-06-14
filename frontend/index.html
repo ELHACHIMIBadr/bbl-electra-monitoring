@@ -210,6 +210,17 @@
           <div><div style="font-size:1.3rem;font-weight:800;color:var(--orange)" id="stats-lost">--</div><div style="font-size:0.72rem;color:var(--text-3);font-weight:600">DH export perdu</div></div>
         </div>
       </div>
+
+      <!-- Coûts par tranche -->
+      <div id="stats-costs-block">
+        <div class="card-header" style="padding:0 2px;margin-bottom:10px;"><span class="card-title">Coût par tranche</span></div>
+        <div class="cost-row">
+          <div class="cost-item"><div class="cost-label hc">HC</div><div class="cost-amount" id="stats-cost-hc">--</div><div class="cost-detail"><span id="stats-kwh-hc">--</span> kWh</div></div>
+          <div class="cost-item"><div class="cost-label hpl">HPL</div><div class="cost-amount" id="stats-cost-hpl">--</div><div class="cost-detail"><span id="stats-kwh-hpl">--</span> kWh</div></div>
+          <div class="cost-item"><div class="cost-label hp">HP</div><div class="cost-amount" id="stats-cost-hp">--</div><div class="cost-detail"><span id="stats-kwh-hp">--</span> kWh</div></div>
+          <div class="cost-item total"><div class="cost-label tot">Total</div><div class="cost-amount" id="stats-cost-total" style="color:var(--solar)">--</div><div class="cost-detail">DH TTC</div></div>
+        </div>
+      </div>
     </div>
 
     <!-- ===== FACTURES ===== -->
